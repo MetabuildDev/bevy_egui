@@ -80,12 +80,12 @@ use bevy::{
     log,
     prelude::{
         Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
-        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, With,
-        Without,
+        IntoSystemConfig, IntoSystemConfigs, Last, PostUpdate, PreStartup, PreUpdate, Query,
+        Resource, Shader, StartupSet, SystemSet, With, Without,
     },
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
-        RenderSet,
+        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render,
+        RenderApp, RenderSet,
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
@@ -533,50 +533,48 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
 
-        app.add_startup_systems(
+        app.add_systems(
+            PreStartup,
             (
                 setup_new_windows_system,
                 apply_system_buffers,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiStartupSet::InitContexts)
-                .in_base_set(StartupSet::PreStartup),
+                .in_set(EguiStartupSet::InitContexts),
         );
         app.add_systems(
+            PreUpdate,
             (
                 setup_new_windows_system,
                 apply_system_buffers,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .in_set(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             process_input_system
                 .in_set(EguiSet::ProcessInput)
                 .after(InputSystem)
-                .after(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             begin_frame_system
                 .in_set(EguiSet::BeginFrame)
-                .after(EguiSet::ProcessInput)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::ProcessInput),
         );
-        app.add_system(
-            process_output_system
-                .in_set(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        app.add_systems(
+            PostUpdate,
+            process_output_system.in_set(EguiSet::ProcessOutput),
         );
-        app.add_system(
-            update_egui_textures_system
-                .after(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        app.add_systems(
+            PostUpdate,
+            update_egui_textures_system.after(EguiSet::ProcessOutput),
         );
-        app.add_system(free_egui_textures_system.in_base_set(CoreSet::Last));
+        app.add_systems(Last, free_egui_textures_system);
 
         let mut shaders = app.world.resource_mut::<Assets<Shader>>();
         shaders.set_untracked(
@@ -598,11 +596,18 @@ impl Plugin for EguiPlugin {
                         .into_configs()
                         .in_schedule(ExtractSchedule),
                 )
-                .add_system(
+                .add_systems(
+                    Render,
                     render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
                 )
-                .add_system(render_systems::queue_bind_groups_system.in_set(RenderSet::Queue))
-                .add_system(render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
+                .add_systems(
+                    Render,
+                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+                )
+                .add_systems(
+                    Render,
+                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+                );
         }
     }
 }
